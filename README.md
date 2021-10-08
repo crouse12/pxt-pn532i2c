@@ -1,18 +1,18 @@
 # MakerBit LCD1602
 
-[![Build Status](https://travis-ci.com/1010Technologies/pxt-makerbit-lcd1602.svg?branch=master)](https://travis-ci.com/1010Technologies/pxt-makerbit-lcd1602)
+[![Build Status](https://travis-ci.com/1010Technologies/pxt-makerbit-rfid.svg?branch=master)](https://travis-ci.com/1010Technologies/pxt-makerbit-rfid)
 
-![MakerBit](https://github.com/1010Technologies/pxt-makerbit-lcd1602/raw/master/icon.png "MakerBit LCD1602")
+![MakerBit](icon.png "PN532 NFC")
 
-MakeCode extension for an I2C LCD 1602 displays.
+MakeCode extension for the PN532 NFC RFID module.
 
 ## MakerBit Board
 
-The MakerBit connects to the BBC micro:bit to provide easy connections to a wide variety of sensors, actuators and other components, for example a LCD display.
+The MakerBit connects to the BBC micro:bit to provide easy connections to a wide variety of sensors, actuators and other components.
 
 http://makerbit.com/
 
-| ![MakerBit](https://github.com/1010Technologies/pxt-makerbit/raw/master/MakerBit.png "MakerBit") | ![MakerBit+R](https://github.com/1010Technologies/pxt-makerbit/raw/master/MakerBit+R.png "MakerBit+R") |
+| ![MakerBit](MakerBit.png "MakerBit") | ![MakerBit+R](MakerBit+R.png "MakerBit+R") |
 | :----------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------: |
 |                                            _MakerBit_                                            |                                   _MakerBit+R with motor controller_                                   |
 

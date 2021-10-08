@@ -1,16 +1,14 @@
 {
-    "name": "MakerBit-LCD1602",
-    "version": "1.6.21",
-    "description": "MakeCode extension for I2C LCD 1602 displays",
+    "name": "MakerBit-RFID",
+    "version": "0.0.1",
+    "description": "MakeCode extension for PN532 NFC RFID module",
     "license": "MIT",
     "dependencies": {
-        "core": "*",
-        "MakerBit-LCD-core": "github:1010Technologies/pxt-makerbit-lcd-core#v1.0.0"
+        "core": "*"
     },
     "files": [
         "README.md",
-        "lcd1602.ts",
-        "_locales/de/MakerBit-LCD1602-strings.json"
+        "rfid.ts"
     ],
     "testFiles": [
         "test.ts"
