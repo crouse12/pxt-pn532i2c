@@ -6,7 +6,7 @@
 namespace makerbit {
 
   /**
-   * Get the UUID from an RFID. v008
+   * Get the UUID from an RFID (v009)
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uuid"
