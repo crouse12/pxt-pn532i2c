@@ -11,7 +11,7 @@
         "rfid.ts",
         "Adafruit_PN532.cpp",
         "Adafruit_PN532.h"
-      ],
+    ],
     "testFiles": [
         "test.ts"
     ],
