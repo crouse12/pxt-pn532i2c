@@ -8,9 +8,7 @@
     },
     "files": [
         "README.md",
-        "rfid.ts",
-        "Adafruit_PN532.cpp",
-        "Adafruit_PN532.h"
+        "rfid.ts"
     ],
     "testFiles": [
         "test.ts"
