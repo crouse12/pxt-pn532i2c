@@ -169,13 +169,13 @@ function RFID_ReadPassiveTargetID() : number[] {
 namespace makerbit {
 
   /**
-   * Get the UID from an RFID (v016)
+   * Get the UID from an RFID (v017)
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
-  //% block="RFID UID $i $j"
+  //% block="RFID UID"
   //% weight=89
-  export function rfidGetUID(i: number, j: number) : number {
+  export function rfidGetUID() : number {
     // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
     // 'uid' will be 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
     const uid = RFID_ReadPassiveTargetID();
