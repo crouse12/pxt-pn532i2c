@@ -155,11 +155,11 @@ namespace makerbit {
   const samconfig = RFID_SAMConfig();
 
   /**
-   * Get the UUID from an RFID (v013)
+   * Get the UUID from an RFID (v014)
    */
   //% subcategory="RFID"
-  //% blockId="makerbit_rfid_get_uuid"
-  //% block="RFID UUID"
+  //% blockId="makerbit_rfid_get_uuid2"
+  //% block="RFID UUID 2"
   //% weight=89
   export function rfidGetUUID() : number {
     // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
