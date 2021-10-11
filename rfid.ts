@@ -183,7 +183,8 @@ namespace makerbit {
     if (uid.length == 4) {
       serial.writeString("Found card: ");
       serial.writeNumbers(uid);
-      return uid[0] << 24 + uid[1] << 16 + uid[2] << 8 + uid[3];
+      let uid32 = (uid[0] << 24) + (uid[1] << 16) + (uid[2] << 8) + uid[3];
+      return uid32;
     }
     return 0;
   }
