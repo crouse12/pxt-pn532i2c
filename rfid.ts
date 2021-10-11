@@ -140,8 +140,6 @@ function RFID_ReadPassiveTargetID() : number[] {
 //% color=#0fbc11 icon="\u272a" block="MakerBit"
 //% category="MakerBit"
 namespace makerbit {
-  const PN532_COMMAND_GETFIRMWAREVERSION = 0x02
-
   const version = RFID_GetFirmwareVersion();
   const chip = ((version >> 24) & 0xFF);
   const tens = Math.floor(chip / 16);
@@ -157,13 +155,13 @@ namespace makerbit {
   const samconfig = RFID_SAMConfig();
 
   /**
-   * Get the UUID from an RFID (v012)
+   * Get the UUID from an RFID (v013)
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uuid"
   //% block="RFID UUID"
   //% weight=89
-  export function rfidGetUUID(): number {
+  export function rfidGetUUID() : number {
     // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
     // 'uid' will be 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
     const uid = RFID_ReadPassiveTargetID();
@@ -173,6 +171,7 @@ namespace makerbit {
       serial.writeNumbers(uid);
       return uid[0];
     }
+    return 0;
   }
 
 }
