@@ -84,6 +84,7 @@ function RFID_SAMConfig() : boolean {
     return (result[6] == 0x15);
 }
 
+let RFID_initialized = false;
 let RFID_startedPassive = false;
 
 function RFID_ReadDetectedPassiveTargetID() : number[] {
@@ -127,7 +128,33 @@ function RFID_StartPassiveTargetID() : void {
     RFID_startedPassive = true;
 }
 
+function RFID_DoInitialize() : void {
+  const version = RFID_GetFirmwareVersion();
+  const chip = ((version >> 24) & 0xFF);
+  if (chip == 0) {
+    return;
+  }
+  const tens = Math.floor(chip / 16);
+  const ones = chip % 16;
+  serial.writeString("Found chip PN5" + tens + ones + "\n");
+  serial.writeString("Firmware version " + ((version >> 16) & 0xFF) +
+    "." + ((version >> 8) & 0xFF) + "\n");
+
+  // Set the max number of retry attempts to read from a card
+  // This prevents us from waiting forever for a card, which is
+  // the default behaviour of the PN532.
+  RFID_SetPassiveActivationRetries(255);
+  const samconfig = RFID_SAMConfig();
+  RFID_initialized = true;
+}
+
 function RFID_ReadPassiveTargetID() : number[] {
+    if (!RFID_initialized) {
+      RFID_DoInitialize();
+      if (!RFID_initialized) {
+        return [0];
+      }
+    }
     if (!RFID_startedPassive) {
         RFID_StartPassiveTargetID();
     }
@@ -140,28 +167,15 @@ function RFID_ReadPassiveTargetID() : number[] {
 //% color=#0fbc11 icon="\u272a" block="MakerBit"
 //% category="MakerBit"
 namespace makerbit {
-  const version = RFID_GetFirmwareVersion();
-  const chip = ((version >> 24) & 0xFF);
-  const tens = Math.floor(chip / 16);
-  const ones = chip % 16;
-  serial.writeString("Found chip PN5" + tens + ones + "\n");
-  serial.writeString("Firmware version " + ((version >> 16) & 0xFF) +
-    "." + ((version >> 8) & 0xFF) + "\n");
-
-  // Set the max number of retry attempts to read from a card
-  // This prevents us from waiting forever for a card, which is
-  // the default behaviour of the PN532.
-  RFID_SetPassiveActivationRetries(255);
-  const samconfig = RFID_SAMConfig();
 
   /**
-   * Get the UID from an RFID (v015)
+   * Get the UID from an RFID (v016)
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
-  //% block="RFID UID $i"
+  //% block="RFID UID $i $j"
   //% weight=89
-  export function rfidGetUID(i: number = 15) : number {
+  export function rfidGetUID(i: number, j: number) : number {
     // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
     // 'uid' will be 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
     const uid = RFID_ReadPassiveTargetID();
