@@ -169,7 +169,7 @@ function RFID_ReadPassiveTargetID() : number[] {
 namespace makerbit {
 
   /**
-   * Get the UID from an RFID (v017)
+   * Get the UID from an RFID (v018)
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
@@ -180,10 +180,10 @@ namespace makerbit {
     // 'uid' will be 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
     const uid = RFID_ReadPassiveTargetID();
     basic.pause(10);
-    if (uid.length >= 4) {
+    if (uid.length == 4) {
       serial.writeString("Found card: ");
       serial.writeNumbers(uid);
-      return uid[0];
+      return uid[0] << 24 + uid[1] << 16 + uid[2] << 8 + uid[3];
     }
     return 0;
   }
