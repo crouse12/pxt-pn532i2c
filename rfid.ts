@@ -1,7 +1,13 @@
 // MakeCode extension for PN532 NFC RFID module
 
+  const PN532_COMMAND_GETFIRMWAREVERSION = 0x02;
+  const PN532_COMMAND_SAMCONFIGURATION = 0x14;
+  const PN532_COMMAND_RFCONFIGURATION = 0x32;
+  const PN532_HOSTTOPN532 = 0xD4;
+  const PN532_COMMAND_INDATAEXCHANGE = 0x40;
+  const PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
+
 function RFID_WriteCommand(cmd: number[]) {
-    const PN532_HOSTTOPN532 = 0xD4;
     let cmdlist: number[] = [0, 0, 0xFF];
     let checksum = 0xFF;
     cmdlist.push(cmd.length + 1);
@@ -27,7 +33,7 @@ function RFID_ReadData(nbytes: number) : number[] {
     return bufr.slice(1).toArray(NumberFormat.UInt8LE);
 }
 
-function i2cReadAck() : boolean {
+function RFID_ReadAck() : boolean {
     let result = RFID_ReadData(6);
     const pn532ack = [0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00];
     return result.every((v, i) => v === pn532ack[i]);
@@ -35,11 +41,10 @@ function i2cReadAck() : boolean {
 
 function RFID_SendCommandCheckAck(cmd: number[]) : boolean {
     RFID_WriteCommand(cmd);
-    return i2cReadAck();
+    return RFID_ReadAck();
 }
 
 function RFID_GetFirmwareVersion() : number {
-    const PN532_COMMAND_GETFIRMWAREVERSION = 0x02;
     if (!RFID_SendCommandCheckAck([PN532_COMMAND_GETFIRMWAREVERSION])) {
         return 0;
     }
@@ -59,7 +64,6 @@ function RFID_GetFirmwareVersion() : number {
 }
 
 function RFID_SetPassiveActivationRetries(maxRetries: number) {
-    const PN532_COMMAND_RFCONFIGURATION = 0x32;
     const pn532_packetbuffer = [PN532_COMMAND_RFCONFIGURATION,
         5,    // Config item 5 (MaxRetries)
         0xFF, // MxRtyATR (default = 0xFF)
@@ -70,7 +74,6 @@ function RFID_SetPassiveActivationRetries(maxRetries: number) {
 
 // brief  Configures the SAM (Secure Access Module)
 function RFID_SAMConfig() : boolean {
-    const PN532_COMMAND_SAMCONFIGURATION = 0x14;
     const pn532_packetbuffer = [PN532_COMMAND_SAMCONFIGURATION,
         0x01, // normal mode;
         0x14, // timeout 50ms * 20 = 1 second
@@ -120,7 +123,6 @@ function RFID_ReadDetectedPassiveTargetID() : number[] {
 }
 
 function RFID_StartPassiveTargetID() : void {
-    const PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
     const pn532_packetbuffer = [PN532_COMMAND_INLISTPASSIVETARGET,
         1, // max 1 cards at once (we can set this to 2 later)
         0];  // card baud rate
@@ -156,13 +158,121 @@ function RFID_ReadPassiveTargetID() : number[] {
       }
     }
     if (!RFID_startedPassive) {
-        RFID_StartPassiveTargetID();
+      RFID_StartPassiveTargetID();
     }
     // while (pins.digitalReadPin(DigitalPin.P0) == 1) {
     //     basic.pause(10);
     // }
     return RFID_ReadDetectedPassiveTargetID();
 }
+
+const enum RFID_key {
+  AUTH_A = 0,
+  AUTH_B = 1
+}
+
+function RFID_MifareAuthenticateBlock(uid: number[], blockNumber: number,
+  key: number, keyData: number[]) : boolean {
+
+  // Prepare the authentication command //
+  let pn532_packetbuffer = [PN532_COMMAND_INDATAEXCHANGE, // Data Exchange Header
+    1,                    // Max card numbers
+    ([0x60, 0x61])[key],  // MIFARE_CMD_AUTH_A or MIFARE_CMD_AUTH_B
+    blockNumber];               // Block Number (1K = 0..63, 4K = 0..255
+  pn532_packetbuffer = pn532_packetbuffer.concat(keyData);
+  pn532_packetbuffer = pn532_packetbuffer.concat(uid);
+
+  if (!RFID_SendCommandCheckAck(pn532_packetbuffer))
+    return false;
+
+  // Read the response packet
+  pn532_packetbuffer = RFID_ReadData(12);
+
+  // check if the response is valid and we are authenticated???
+  // for an auth success it should be bytes 5-7: 0xD5 0x41 0x00
+  // Mifare auth error is technically byte 7: 0x14 but anything other and 0x00
+  // is not good
+  if (pn532_packetbuffer[7] != 0x00) {
+    serial.writeString("Authentification failed: ");
+    serial.writeNumbers(pn532_packetbuffer);
+    return false;
+  }
+
+  return true;
+}
+
+
+function RFID_MifareWriteDataBlock(blockNumber: number,
+  dataPayload: number[]): boolean {
+    const MIFARE_CMD_WRITE = 0xA0;
+
+    /* Prepare the first command */
+  let pn532_packetbuffer = [PN532_COMMAND_INDATAEXCHANGE, 
+    1,                /* Card number */
+    MIFARE_CMD_WRITE, /* Mifare Write command = 0xA0 */
+    blockNumber]; /* Block Number (0..63 for 1K, 0..255 for 4K) */
+  pn532_packetbuffer = pn532_packetbuffer.concat(dataPayload);
+
+  /* Send the command */
+  if (!RFID_SendCommandCheckAck(pn532_packetbuffer)) {
+    serial.writeString("Failed to receive ACK for write command\n");
+    return false;
+  }
+
+  basic.pause(10);
+
+  /* Read the response packet */
+  pn532_packetbuffer = RFID_ReadData(26);
+
+  return true;
+}
+
+
+function RFID_MifareWriteNDEFURI(sectorNumber: number, uriIdentifier: number,
+  url: string) : boolean {
+
+  // Make sure we're within a 1K limit for the sector number
+  if ((sectorNumber < 1) || (sectorNumber > 15))
+    return false;
+
+  // Make sure the URI payload is between 1 and 38 chars
+  if ((url.length < 1) || (url.length > 38))
+    return false;
+
+  // Note 0xD3 0xF7 0xD3 0xF7 0xD3 0xF7 must be used for key A
+  // in NDEF records
+
+  // Setup the sector buffer (w/pre-formatted TLV wrapper and NDEF message)
+  let buffer1to3 = [
+    0x00, 0x00, 0x03,
+    url.length + 5,
+    0xD1, 0x01,
+    url.length + 1,
+    0x55,
+    uriIdentifier];
+  let buffer4 = [0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07,
+                               0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+  for (let i=0; i < url.length; i++) {
+    buffer1to3.push(url.charCodeAt(i) & 0xFF);
+  }
+  buffer1to3.push(0xFE);  // end-of-URL marker
+  for (let i=0; i < 38 - url.length; i++) {
+    buffer1to3.push(0x00);
+  }
+
+  // Now write all four blocks back to the card
+  if (!(RFID_MifareWriteDataBlock(sectorNumber * 4, buffer1to3.slice(0, 16))))
+    return false;
+  if (!(RFID_MifareWriteDataBlock((sectorNumber * 4) + 1, buffer1to3.slice(16, 32))))
+    return false;
+  if (!(RFID_MifareWriteDataBlock((sectorNumber * 4) + 2, buffer1to3.slice(32, 48))))
+    return false;
+  if (!(RFID_MifareWriteDataBlock((sectorNumber * 4) + 3, buffer4)))
+    return false;
+
+  return true;
+}
+
 
 //% color=#0fbc11 icon="\u272a" block="MakerBit"
 //% category="MakerBit"
@@ -187,6 +297,38 @@ namespace makerbit {
       return uid32;
     }
     return 0;
+  }
+
+  /**
+   * Write a URL to an RFID
+   */
+  //% subcategory="RFID"
+  //% blockId="makerbit_rfid_write_url"
+  //% block="RFID write URL $url"
+  //% url.defl="1010technologies.com"
+  //% weight=89
+  export function rfidWriteURL(url: string) {
+    let uid = [0];
+    while ((uid = RFID_ReadPassiveTargetID()).length != 4) {
+      serial.writeString("Place card on the RFID chip\n");
+      basic.showString("card?");
+    }
+
+    const keyb_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
+
+    let success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keyb_ndef);
+    if (!success) {
+      serial.writeString("Authentication failed as keyb.\n");
+      basic.showString("err")
+      return;
+    }
+
+    const NDEF_URIPREFIX_HTTP_WWWDOT = 1;
+
+    success = RFID_MifareWriteNDEFURI(1, NDEF_URIPREFIX_HTTP_WWWDOT, url);
+
+    serial.writeString("done writing URL " + url + "\n");
+    basic.showString("done")
   }
 
 }
