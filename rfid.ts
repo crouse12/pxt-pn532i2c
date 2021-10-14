@@ -110,6 +110,7 @@ function RFID_ReadDetectedPassiveTargetID() : number[] {
     if (pn532_packetbuffer[7] != 1)
         return [0];
 
+    // If we successfully got a response, reset our passive read.
     RFID_startedPassive = false;
 
     let sens_res = pn532_packetbuffer[9];
@@ -193,8 +194,8 @@ function RFID_MifareAuthenticateBlock(uid: number[], blockNumber: number,
   // Mifare auth error is technically byte 7: 0x14 but anything other and 0x00
   // is not good
   if (pn532_packetbuffer[7] != 0x00) {
-    serial.writeString("Authentification failed: ");
-    serial.writeNumbers(pn532_packetbuffer);
+//    serial.writeString("Authentification failed: ");
+//    serial.writeNumbers(pn532_packetbuffer);
     return false;
   }
 
@@ -251,7 +252,7 @@ function RFID_MifareWriteNDEFURI(sectorNumber: number, uriIdentifier: number,
     0x55,
     uriIdentifier];
   let buffer4 = [0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07,
-                               0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+                 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
   for (let i=0; i < url.length; i++) {
     buffer1to3.push(url.charCodeAt(i) & 0xFF);
   }
@@ -274,12 +275,36 @@ function RFID_MifareWriteNDEFURI(sectorNumber: number, uriIdentifier: number,
 }
 
 
+function RFID_MifareFormatNDEF() : boolean {
+  const sectorbuffer1 = [0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1,
+    0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1];
+  const sectorbuffer2 = [0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1,
+    0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1];
+  const sectorbuffer3 = [0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77,
+    0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+
+  // Note 0xA0 0xA1 0xA2 0xA3 0xA4 0xA5 must be used for key A
+  // for the MAD sector in NDEF records (sector 0)
+
+  // Write block 1 and 2 to the card
+  if (!(RFID_MifareWriteDataBlock(1, sectorbuffer1)))
+    return false;
+  if (!(RFID_MifareWriteDataBlock(2, sectorbuffer2)))
+    return false;
+  // Write key A and access rights card
+  if (!(RFID_MifareWriteDataBlock(3, sectorbuffer3)))
+    return false;
+
+  return true;
+}
+
+
 //% color=#0fbc11 icon="\u272a" block="MakerBit"
 //% category="MakerBit"
 namespace makerbit {
 
   /**
-   * Get the UID from an RFID (v018)
+   * Get the UID from an RFID (v019)
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
@@ -300,7 +325,7 @@ namespace makerbit {
   }
 
   /**
-   * Write a URL to an RFID
+   * Write a URL to an RFID. Do not include the http://. Max 38 characters.
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_write_url"
@@ -313,22 +338,52 @@ namespace makerbit {
       serial.writeString("Place card on the RFID chip\n");
       basic.showString("card?");
     }
+    serial.writeString("Found card: ");
+    serial.writeNumbers(uid);
 
-    const keyb_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
+    const keya = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
 
-    let success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keyb_ndef);
+    // // First see if we need to reformat the card for NDEF.
+    let success = RFID_MifareAuthenticateBlock(uid, 0, RFID_key.AUTH_A, keya);
+    if (success) {
+      serial.writeString("Formatting card for NDEF\n");
+      if (!RFID_MifareFormatNDEF()) {
+        serial.writeString("Unable to format the card for NDEF\n");
+        basic.showString("err")
+        return;
+      }
+    }
+
+    // // Now see if this is a newly-formatted card (still old key)
+    // // or if we are rewriting an existing NDEF URL.
+    serial.writeString("Trying original (non-NDEF) key.\n");
+    success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya);
     if (!success) {
-      serial.writeString("Authentication failed as keyb.\n");
-      basic.showString("err")
-      return;
+      serial.writeString("Doesn't seem to be non-NDEF. Trying NDEF key.\n");
+      // TODO: For some reason we need to call this twice. The Arduino code
+      // only needs to call it once. Not sure why.
+      uid = RFID_ReadPassiveTargetID(); // Reset PN532
+      uid = RFID_ReadPassiveTargetID();
+      const keya_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
+      success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya_ndef);
+      if (!success) {
+        serial.writeString("Authentication failed as NDEF key.\n");
+        basic.showString("err")
+        return;
+      }
     }
 
     const NDEF_URIPREFIX_HTTP_WWWDOT = 1;
 
+    serial.writeString("Found authentication key, writing URL...\n");
     success = RFID_MifareWriteNDEFURI(1, NDEF_URIPREFIX_HTTP_WWWDOT, url);
-
-    serial.writeString("done writing URL " + url + "\n");
-    basic.showString("done")
+    if (success) {
+      serial.writeString("Done writing URL: " + url + "\n");
+      basic.showString("done")
+    } else {
+      serial.writeString("Write URL failed.\n");
+      basic.showString("err")
+    }
   }
 
 }
