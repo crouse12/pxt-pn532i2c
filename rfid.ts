@@ -214,7 +214,6 @@ function RFID_MifareWriteDataBlock(blockNumber: number,
     blockNumber]; /* Block Number (0..63 for 1K, 0..255 for 4K) */
   pn532_packetbuffer = pn532_packetbuffer.concat(dataPayload);
 
-  /* Send the command */
   if (!RFID_SendCommandCheckAck(pn532_packetbuffer)) {
     serial.writeString("Failed to receive ACK for write command\n");
     return false;
@@ -229,6 +228,9 @@ function RFID_MifareWriteDataBlock(blockNumber: number,
 }
 
 
+/* This assumes that the first block of the sector has already been
+   authenticaed.
+*/
 function RFID_MifareWriteNDEFPayload(sectorNumber: number,
   typeFields: number[], payload: string) : boolean
 {
@@ -389,12 +391,123 @@ function RFID_MifareWritePayload(payload: string, type: string) {
 }
 
 
+function RFID_MifareReadDataBlock(blockNumber: number): number[] {
+  /* Prepare the command */
+  const MIFARE_CMD_READ = 0x30;
+  let pn532_packetbuffer = [PN532_COMMAND_INDATAEXCHANGE,
+    1,               /* Card number */
+    MIFARE_CMD_READ, /* Mifare Read command = 0x30 */
+    blockNumber]; /* Block Number (0..63 for 1K, 0..255 for 4K) */
+
+  if (!RFID_SendCommandCheckAck(pn532_packetbuffer)) {
+    serial.writeString("Failed to receive ACK for read command\n");
+    return [0];
+  }
+
+  basic.pause(10);
+
+  /* Read the response packet */
+  pn532_packetbuffer = RFID_ReadData(26);
+
+  /* If byte 8 isn't 0x00 we probably have an error */
+  if (pn532_packetbuffer[7] != 0x00) {
+    serial.writeString("Unexpected response\n");
+    serial.writeNumbers(pn532_packetbuffer);
+    return [0];
+  }
+
+  /* Copy the 16 data bytes to the output buffer        */
+  /* Block content starts at byte 9 of a valid response */
+  let result = pn532_packetbuffer.slice(8, 24);
+  serial.writeString("Data block: ");
+  serial.writeNumbers(result);
+  return result;
+}
+
+
+function RFID_ExtractTLVPayload(payload: number[]): number[] {
+  for (let i=0; i < payload.length - 2; i++) {
+    // Look for TLV start-of-message tag, get length, then extract.
+    if (payload[i] == 0x03) {
+      const len = payload[i + 1];
+      if (len > 0) {
+        return payload.slice(i + 2, i + 2 + len);
+      }
+      i++;
+    }
+  }
+  return [0];
+}
+
+
+/* This assumes that the first block of the sector has already been
+   authenticaed.
+*/
+function RFID_MifareReadNDEFPayload(sectorNumber: number): string {
+  let result1 = RFID_MifareReadDataBlock(sectorNumber * 4);
+  if (result1.length <= 1)
+    return "";
+  let result2 = RFID_MifareReadDataBlock(sectorNumber * 4 + 1);
+  if (result2.length <= 1)
+    return "";
+  let result3 = RFID_MifareReadDataBlock(sectorNumber * 4 + 2);
+  if (result3.length <= 1)
+    return "";
+  let result = result1.concat(result2).concat(result3);
+
+  result = RFID_ExtractTLVPayload(result);
+
+  if (result.length < 6) {
+    return "";
+  }
+  if (result[0] != 0xD1 || result[1] != 1) {
+    return "";
+  }
+
+  let str = "";
+  let i = result.length;
+  if (result[3] == 0x54) {  // Text payload
+    i = 7;
+  } else if (result[3] == 0x55) {  // URI payload
+    i = 5;
+  }
+  for ( ; i < result.length; i++) {
+    str += String.fromCharCode(result[i]);
+  }
+  return str
+}
+
+
+function RFID_MifareReadPayload() : string {
+  let uid = [0];
+  while ((uid = RFID_ReadPassiveTargetID()).length != 4) {
+    serial.writeString("Place card on the RFID chip\n");
+    basic.showString("card?");
+  }
+  serial.writeString("Found card: ");
+  serial.writeNumbers(uid);
+
+  const keya_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
+  let success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya_ndef);
+  if (!success) {
+    serial.writeString("Authentication failed as NDEF key.\n");
+    basic.showString("err")
+    return "";
+  }
+
+  let result = RFID_MifareReadNDEFPayload(1);
+  serial.writeString("Result: " + result + "\n");
+
+   return result;
+}
+
+
 //% color=#0fbc11 icon="\u272a" block="MakerBit"
 //% category="MakerBit"
 namespace makerbit {
 
   /**
-   * Get the UID from an RFID (v019)
+   * Get the UID from an RFID (v020)
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
@@ -427,13 +540,24 @@ namespace makerbit {
   }
 
   /**
+   * Read a text string from an RFID.
+   */
+  //% subcategory="RFID"
+  //% blockId="makerbit_rfid_read_string"
+  //% block="RFID read string"
+  //% weight=80
+  export function rfidReadString() : string {
+    return RFID_MifareReadPayload();
+  }
+
+  /**
    * Write a URL to an RFID. Do not include the http://. Max 38 characters.
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_write_url"
   //% block="RFID write URL $url"
   //% url.defl="1010technologies.com"
-  //% weight=80
+  //% weight=75
   export function rfidWriteURL(url: string) {
     RFID_MifareWritePayload(url, "U");
   }
