@@ -1,11 +1,11 @@
 // MakeCode extension for PN532 NFC RFID module
 
-  const PN532_COMMAND_GETFIRMWAREVERSION = 0x02;
-  const PN532_COMMAND_SAMCONFIGURATION = 0x14;
-  const PN532_COMMAND_RFCONFIGURATION = 0x32;
-  const PN532_HOSTTOPN532 = 0xD4;
-  const PN532_COMMAND_INDATAEXCHANGE = 0x40;
-  const PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
+const PN532_COMMAND_GETFIRMWAREVERSION = 0x02;
+const PN532_COMMAND_SAMCONFIGURATION = 0x14;
+const PN532_COMMAND_RFCONFIGURATION = 0x32;
+const PN532_HOSTTOPN532 = 0xD4;
+const PN532_COMMAND_INDATAEXCHANGE = 0x40;
+const PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
 
 function RFID_WriteCommand(cmd: number[]) {
     let cmdlist: number[] = [0, 0, 0xFF];
@@ -229,37 +229,56 @@ function RFID_MifareWriteDataBlock(blockNumber: number,
 }
 
 
-function RFID_MifareWriteNDEFURI(sectorNumber: number, uriIdentifier: number,
-  url: string) : boolean {
+function RFID_MifareWriteNDEFPayload(sectorNumber: number,
+  typeFields: number[], payload: string) : boolean
+{
 
   // Make sure we're within a 1K limit for the sector number
   if ((sectorNumber < 1) || (sectorNumber > 15))
     return false;
 
-  // Make sure the URI payload is between 1 and 38 chars
-  if ((url.length < 1) || (url.length > 38))
+  // Make sure the payload will fit
+  const maxLen = 40 - typeFields.length;
+  if ((payload.length < 1) || (payload.length > maxLen))
     return false;
 
-  // Note 0xD3 0xF7 0xD3 0xF7 0xD3 0xF7 must be used for key A
-  // in NDEF records
+  // record header 0xD1 in bits:
+  //   Bit 7 = MB = 1: first record of NDEF message
+  //   Bit 6 = ME = 1: last record of NDEF message
+  //   Bit 5 = CF = 0: last or only record of chain
+  //   Bit 4 = SR = 1: short record length field
+  //   Bit 3 = IL = 0: no ID/ID length fields
+  //   Bit 2..0 = TNF = 0x1: Type field represents an NFC Forum well-known type name
 
-  // Setup the sector buffer (w/pre-formatted TLV wrapper and NDEF message)
+  // Sector buffer with pre-formatted TLV wrapper and NDEF message
+  // https://stackoverflow.com/questions/37220910/how-to-interpret-ndef-content-on-mifare-classic-1k
+  // TLV = tag-length-value
   let buffer1to3 = [
-    0x00, 0x00, 0x03,
-    url.length + 5,
-    0xD1, 0x01,
-    url.length + 1,
-    0x55,
-    uriIdentifier];
-  let buffer4 = [0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07,
-                 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
-  for (let i=0; i < url.length; i++) {
-    buffer1to3.push(url.charCodeAt(i) & 0xFF);
+    0x00,  // Null TLV (ignore, process next byte)
+    0x00,  // Null TLV (ignore, process next byte)
+    0x03,  // NDEF message TLV
+    payload.length + typeFields.length + 3,  // NDEF message length
+    0xD1,  // record header (see above)
+    0x01,  // type length = 1 byte
+    payload.length + typeFields.length - 1];
+
+  for (let i=0; i < typeFields.length; i++) {
+    buffer1to3.push(typeFields[i]);
   }
-  buffer1to3.push(0xFE);  // end-of-URL marker
-  for (let i=0; i < 38 - url.length; i++) {
+
+  for (let i=0; i < payload.length; i++) {
+    buffer1to3.push(payload.charCodeAt(i) & 0xFF);
+  }
+
+  buffer1to3.push(0xFE);  // Terminator TLV
+
+  for (let i=0; i < maxLen - payload.length; i++) {
     buffer1to3.push(0x00);
   }
+
+  // 0xD3 0xF7 0xD3 0xF7 0xD3 0xF7 must be used for key A in NDEF records
+  let buffer4 = [0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07,
+                 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
 
   // Now write all four blocks back to the card
   if (!(RFID_MifareWriteDataBlock(sectorNumber * 4, buffer1to3.slice(0, 16))))
@@ -275,7 +294,8 @@ function RFID_MifareWriteNDEFURI(sectorNumber: number, uriIdentifier: number,
 }
 
 
-function RFID_MifareFormatNDEF() : boolean {
+function RFID_MifareFormatNDEF() : boolean
+{
   const sectorbuffer1 = [0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1,
     0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1];
   const sectorbuffer2 = [0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1,
@@ -299,6 +319,76 @@ function RFID_MifareFormatNDEF() : boolean {
 }
 
 
+function RFID_MifareWritePayload(payload: string, type: string) {
+  let uid = [0];
+  while ((uid = RFID_ReadPassiveTargetID()).length != 4) {
+    serial.writeString("Place card on the RFID chip\n");
+    basic.showString("card?");
+  }
+  serial.writeString("Found card: ");
+  serial.writeNumbers(uid);
+
+  const keya = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+
+  // // First see if we need to reformat the card for NDEF.
+  let success = RFID_MifareAuthenticateBlock(uid, 0, RFID_key.AUTH_A, keya);
+  if (success) {
+    serial.writeString("Formatting card for NDEF\n");
+    if (!RFID_MifareFormatNDEF()) {
+      serial.writeString("Unable to format the card for NDEF\n");
+      basic.showString("err")
+      return;
+    }
+  }
+
+  // // Now see if this is a newly-formatted card (still old key)
+  // // or if we are rewriting an existing NDEF URL.
+  serial.writeString("Trying original (non-NDEF) key.\n");
+  success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya);
+  if (!success) {
+    serial.writeString("Doesn't seem to be non-NDEF. Trying NDEF key.\n");
+    // TODO: For some reason we need to call this twice. The Arduino code
+    // only needs to call it once. Not sure why.
+    uid = RFID_ReadPassiveTargetID(); // Reset PN532
+    uid = RFID_ReadPassiveTargetID();
+    const keya_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
+    success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya_ndef);
+    if (!success) {
+      serial.writeString("Authentication failed as NDEF key.\n");
+      basic.showString("err")
+      return;
+    }
+  }
+
+  const NDEF_URIPREFIX_HTTP_WWWDOT = 1;
+
+  serial.writeString("Found authentication key, writing payload...\n");
+  if (type == "U")
+  {
+    const typeFields = [
+      0x55,  // ASCII "U" for URI urn:nfc:wkt:U
+      NDEF_URIPREFIX_HTTP_WWWDOT];  // 1 for http://, 2 for https://, etc.
+    success = RFID_MifareWriteNDEFPayload(1, typeFields, payload);
+  } else if (type == "T") {
+    const typeFields = [
+      0x54, // ASCII "T" for URI urn:nfc:wkt:T
+      0x02, // Language code size
+      0x65, 0x6E];  // Language = English, 'en',
+    success = RFID_MifareWriteNDEFPayload(1, typeFields, payload);
+  } else {
+    success = false;
+  }
+
+  if (success) {
+    serial.writeString("Done writing: " + payload + "\n");
+    basic.showString("done")
+  } else {
+    serial.writeString("Write failed.\n");
+    basic.showString("err")
+  }
+}
+
+
 //% color=#0fbc11 icon="\u272a" block="MakerBit"
 //% category="MakerBit"
 namespace makerbit {
@@ -309,7 +399,7 @@ namespace makerbit {
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
   //% block="RFID UID"
-  //% weight=89
+  //% weight=90
   export function rfidGetUID() : number {
     // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
     // 'uid' will be 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
@@ -325,65 +415,27 @@ namespace makerbit {
   }
 
   /**
+   * Write a text string to an RFID. Max 37 characters.
+   */
+  //% subcategory="RFID"
+  //% blockId="makerbit_rfid_write_string"
+  //% block="RFID write string $text"
+  //% text.defl="Hello!"
+  //% weight=85
+  export function rfidWriteString(text: string) {
+    RFID_MifareWritePayload(text, "T");
+  }
+
+  /**
    * Write a URL to an RFID. Do not include the http://. Max 38 characters.
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_write_url"
   //% block="RFID write URL $url"
   //% url.defl="1010technologies.com"
-  //% weight=89
+  //% weight=80
   export function rfidWriteURL(url: string) {
-    let uid = [0];
-    while ((uid = RFID_ReadPassiveTargetID()).length != 4) {
-      serial.writeString("Place card on the RFID chip\n");
-      basic.showString("card?");
-    }
-    serial.writeString("Found card: ");
-    serial.writeNumbers(uid);
-
-    const keya = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
-
-    // // First see if we need to reformat the card for NDEF.
-    let success = RFID_MifareAuthenticateBlock(uid, 0, RFID_key.AUTH_A, keya);
-    if (success) {
-      serial.writeString("Formatting card for NDEF\n");
-      if (!RFID_MifareFormatNDEF()) {
-        serial.writeString("Unable to format the card for NDEF\n");
-        basic.showString("err")
-        return;
-      }
-    }
-
-    // // Now see if this is a newly-formatted card (still old key)
-    // // or if we are rewriting an existing NDEF URL.
-    serial.writeString("Trying original (non-NDEF) key.\n");
-    success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya);
-    if (!success) {
-      serial.writeString("Doesn't seem to be non-NDEF. Trying NDEF key.\n");
-      // TODO: For some reason we need to call this twice. The Arduino code
-      // only needs to call it once. Not sure why.
-      uid = RFID_ReadPassiveTargetID(); // Reset PN532
-      uid = RFID_ReadPassiveTargetID();
-      const keya_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
-      success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya_ndef);
-      if (!success) {
-        serial.writeString("Authentication failed as NDEF key.\n");
-        basic.showString("err")
-        return;
-      }
-    }
-
-    const NDEF_URIPREFIX_HTTP_WWWDOT = 1;
-
-    serial.writeString("Found authentication key, writing URL...\n");
-    success = RFID_MifareWriteNDEFURI(1, NDEF_URIPREFIX_HTTP_WWWDOT, url);
-    if (success) {
-      serial.writeString("Done writing URL: " + url + "\n");
-      basic.showString("done")
-    } else {
-      serial.writeString("Write URL failed.\n");
-      basic.showString("err")
-    }
+    RFID_MifareWritePayload(url, "U");
   }
 
 }
