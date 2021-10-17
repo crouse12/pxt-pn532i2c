@@ -7,6 +7,44 @@ const PN532_HOSTTOPN532 = 0xD4;
 const PN532_COMMAND_INDATAEXCHANGE = 0x40;
 const PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
 
+enum HexDigits {
+    //% block="default"
+    d0 = 0,
+    //% block="1"
+    d1,
+    //% block="2"
+    d2,
+    //% block="3"
+    d3,
+    //% block="4"
+    d4,
+    //% block="5"
+    d5,
+    //% block="6"
+    d6,
+    //% block="7"
+    d7,
+    //% block="8"
+    d8,
+    //% block="9"
+    d9,
+    //% block="10"
+    d10,
+    //% block="11"
+    d11,
+    //% block="12"
+    d12,
+    //% block="13"
+    d13,
+    //% block="14"
+    d14,
+    //% block="15"
+    d15,
+    //% block="16"
+    d16
+}
+
+
 function RFID_WriteCommand(cmd: number[]) {
     let cmdlist: number[] = [0, 0, 0xFF];
     let checksum = 0xFF;
@@ -528,7 +566,7 @@ namespace makerbit {
   }
 
   /**
-   * Write a text string to an RFID. Max 37 characters.
+   * Write a text string to an RFID. Max 36 characters.
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_write_string"
@@ -560,6 +598,32 @@ namespace makerbit {
   //% weight=75
   export function rfidWriteURL(url: string) {
     RFID_MifareWritePayload(url, "U");
+  }
+
+  /**
+   * Convert a decimal number to a hexadecimal string,
+   * with an optional number of digits.
+   */
+  //% blockId="makerbit_convert_number_hexstring"
+  //% block="convert $value to hex, $digits digits"
+  //% weight=70
+  export function convertNumberToHexString(value: number, digits: HexDigits) : string {
+    let hex = "";
+    let d: number = digits;
+    if (d == 0) {
+      d = 64;
+    }
+    for (let pos = 1; pos <= d; pos++) {
+      let remainder = value % 16;
+      if (remainder < 10) {
+        hex = remainder.toString() + hex;
+      } else {
+        hex = String.fromCharCode(55 + remainder) + hex;
+      }
+      value = Math.idiv(value, 16);
+      if (digits == 0 && value == 0 && (pos % 2) == 0) break;
+    }
+    return hex;
   }
 
 }
