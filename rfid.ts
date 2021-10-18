@@ -1,5 +1,16 @@
 // MakeCode extension for PN532 NFC RFID module
 
+let RFID_DEBUG = false;
+
+/*
+let serial: any;
+let basic: any;
+let pins: any;
+let NumberFormat: any;
+let control: any;
+let EventBusValue: any;
+*/
+
 const PN532_COMMAND_GETFIRMWAREVERSION = 0x02;
 const PN532_COMMAND_SAMCONFIGURATION = 0x14;
 const PN532_COMMAND_RFCONFIGURATION = 0x32;
@@ -45,6 +56,29 @@ enum HexDigits {
 }
 
 
+function MakerBit_convertNumberToHex(value: number, digits: HexDigits) : string {
+  let hex = "";
+  let d: number = digits;
+  if (d == 0) {
+    d = 16;
+  }
+  for (let pos = 1; pos <= d; pos++) {
+    let remainder = value & 0xF;
+    if (remainder < 10) {
+      hex = remainder.toString() + hex;
+    } else {
+      hex = String.fromCharCode(55 + remainder) + hex;
+    }
+    value = value >> 4;
+    if (value < 0 && value > -268435456) {
+      value += 268435456;
+    }
+    if (digits == 0 && value == 0 && (pos % 2) == 0) break;
+  }
+  return hex;
+}
+
+
 function RFID_WriteCommand(cmd: number[]) {
     let cmdlist: number[] = [0, 0, 0xFF];
     let checksum = 0xFF;
@@ -62,12 +96,12 @@ function RFID_WriteCommand(cmd: number[]) {
     cmdlist.push(0);
     let bufr = pins.createBufferFromArray(cmdlist);
     pins.i2cWriteBuffer(0x24, bufr);
-    basic.pause(5);
+    basic.pause(50);
 }
 
 function RFID_ReadData(nbytes: number) : number[] {
     let bufr = pins.i2cReadBuffer(0x24, nbytes + 1, false);
-    basic.pause(5)
+    basic.pause(50);
     return bufr.slice(1).toArray(NumberFormat.UInt8LE);
 }
 
@@ -128,9 +162,22 @@ function RFID_SAMConfig() : boolean {
 let RFID_initialized = false;
 let RFID_startedPassive = false;
 
+
 function RFID_ReadDetectedPassiveTargetID() : number[] {
-    // read data packet
-    let pn532_packetbuffer = RFID_ReadData(20);
+
+  let pn532_packetbuffer;
+  
+  if (!RFID_startedPassive) {
+    pn532_packetbuffer = [PN532_COMMAND_INLISTPASSIVETARGET,
+        1, // max 1 cards at once (we can set this to 2 later)
+        0];  // card baud rate
+    RFID_SendCommandCheckAck(pn532_packetbuffer);
+    RFID_startedPassive = true;
+  }
+
+  // read data packet
+  pn532_packetbuffer = RFID_ReadData(20);
+
   // check some basic stuff
 
   /* ISO14443A card response should be in the following format:
@@ -161,13 +208,6 @@ function RFID_ReadDetectedPassiveTargetID() : number[] {
     return uid;
 }
 
-function RFID_StartPassiveTargetID() : void {
-    const pn532_packetbuffer = [PN532_COMMAND_INLISTPASSIVETARGET,
-        1, // max 1 cards at once (we can set this to 2 later)
-        0];  // card baud rate
-    RFID_SendCommandCheckAck(pn532_packetbuffer);
-    RFID_startedPassive = true;
-}
 
 function RFID_DoInitialize() : void {
   const version = RFID_GetFirmwareVersion();
@@ -177,9 +217,11 @@ function RFID_DoInitialize() : void {
   }
   const tens = Math.floor(chip / 16);
   const ones = chip % 16;
-  serial.writeString("Found chip PN5" + tens + ones + "\n");
-  serial.writeString("Firmware version " + ((version >> 16) & 0xFF) +
-    "." + ((version >> 8) & 0xFF) + "\n");
+  if (RFID_DEBUG) {
+    serial.writeString("Found chip PN5" + tens + ones + "\n");
+    serial.writeString("Firmware version " + ((version >> 16) & 0xFF) +
+      "." + ((version >> 8) & 0xFF) + "\n");
+  }
 
   // Set the max number of retry attempts to read from a card
   // This prevents us from waiting forever for a card, which is
@@ -189,6 +231,7 @@ function RFID_DoInitialize() : void {
   RFID_initialized = true;
 }
 
+
 function RFID_ReadPassiveTargetID() : number[] {
     if (!RFID_initialized) {
       RFID_DoInitialize();
@@ -196,14 +239,14 @@ function RFID_ReadPassiveTargetID() : number[] {
         return [0];
       }
     }
-    if (!RFID_startedPassive) {
-      RFID_StartPassiveTargetID();
+    const uid = RFID_ReadDetectedPassiveTargetID();
+    if (RFID_DEBUG) {
+      serial.writeString("Found RFID: " +
+        MakerBit_convertNumberToHex(RFID_ConvertUIDtoNumber(uid), 8) + "\n");
     }
-    // while (pins.digitalReadPin(DigitalPin.P0) == 1) {
-    //     basic.pause(10);
-    // }
-    return RFID_ReadDetectedPassiveTargetID();
+    return uid;
 }
+
 
 const enum RFID_key {
   AUTH_A = 0,
@@ -227,13 +270,8 @@ function RFID_MifareAuthenticateBlock(uid: number[], blockNumber: number,
   // Read the response packet
   pn532_packetbuffer = RFID_ReadData(12);
 
-  // check if the response is valid and we are authenticated???
-  // for an auth success it should be bytes 5-7: 0xD5 0x41 0x00
-  // Mifare auth error is technically byte 7: 0x14 but anything other and 0x00
-  // is not good
+  // Auth success should be bytes 5-7: 0xD5 0x41 0x00. Just check byte 7.
   if (pn532_packetbuffer[7] != 0x00) {
-//    serial.writeString("Authentification failed: ");
-//    serial.writeNumbers(pn532_packetbuffer);
     return false;
   }
 
@@ -253,7 +291,9 @@ function RFID_MifareWriteDataBlock(blockNumber: number,
   pn532_packetbuffer = pn532_packetbuffer.concat(dataPayload);
 
   if (!RFID_SendCommandCheckAck(pn532_packetbuffer)) {
-    serial.writeString("Failed to receive ACK for write command\n");
+    if (RFID_DEBUG) {
+      serial.writeString("Failed to receive ACK for write command\n");
+    }
     return false;
   }
 
@@ -359,50 +399,55 @@ function RFID_MifareFormatNDEF() : boolean
 }
 
 
-function RFID_MifareWritePayload(payload: string, type: string) {
-  let uid = [0];
-  while ((uid = RFID_ReadPassiveTargetID()).length != 4) {
-    serial.writeString("Place card on the RFID chip\n");
-    basic.showString("card?");
-  }
-  serial.writeString("Found card: ");
-  serial.writeNumbers(uid);
+function RFID_MifareWritePayload(payload: string, type: string)
+{
+  let uid = RFID_ReadPassiveTargetID();
 
   const keya = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
 
   // // First see if we need to reformat the card for NDEF.
   let success = RFID_MifareAuthenticateBlock(uid, 0, RFID_key.AUTH_A, keya);
   if (success) {
-    serial.writeString("Formatting card for NDEF\n");
+    if (RFID_DEBUG) {
+      serial.writeString("Formatting card for NDEF\n");
+    }
     if (!RFID_MifareFormatNDEF()) {
-      serial.writeString("Unable to format the card for NDEF\n");
-      basic.showString("err")
+      if (RFID_DEBUG) {
+        serial.writeString("Unable to format the card for NDEF\n");
+      }
       return;
     }
   }
 
   // // Now see if this is a newly-formatted card (still old key)
   // // or if we are rewriting an existing NDEF URL.
-  serial.writeString("Trying original (non-NDEF) key.\n");
+  if (RFID_DEBUG) {
+    serial.writeString("Trying original (non-NDEF) key.\n");
+  }
+
   success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya);
+
   if (!success) {
-    serial.writeString("Doesn't seem to be non-NDEF. Trying NDEF key.\n");
-    // TODO: For some reason we need to call this twice. The Arduino code
-    // only needs to call it once. Not sure why.
+    if (RFID_DEBUG) {
+      serial.writeString("Doesn't seem to be non-NDEF. Trying NDEF key.\n");
+    }
     uid = RFID_ReadPassiveTargetID(); // Reset PN532
-    uid = RFID_ReadPassiveTargetID();
     const keya_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
     success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya_ndef);
     if (!success) {
-      serial.writeString("Authentication failed as NDEF key.\n");
-      basic.showString("err")
+      if (RFID_DEBUG) {
+        serial.writeString("Authentication failed as NDEF key.\n");
+      }
       return;
     }
   }
 
   const NDEF_URIPREFIX_HTTP_WWWDOT = 1;
 
-  serial.writeString("Found authentication key, writing payload...\n");
+  if (RFID_DEBUG) {
+    serial.writeString("Found authentication key, writing payload...\n");
+  }
+
   if (type == "U")
   {
     const typeFields = [
@@ -419,12 +464,12 @@ function RFID_MifareWritePayload(payload: string, type: string) {
     success = false;
   }
 
-  if (success) {
-    serial.writeString("Done writing: " + payload + "\n");
-    basic.showString("done")
-  } else {
-    serial.writeString("Write failed.\n");
-    basic.showString("err")
+  if (RFID_DEBUG) {
+    if (success) {
+      serial.writeString("Done writing: " + payload + "\n");
+    } else {
+      serial.writeString("Write failed.\n");
+    }
   }
 }
 
@@ -438,7 +483,9 @@ function RFID_MifareReadDataBlock(blockNumber: number): number[] {
     blockNumber]; /* Block Number (0..63 for 1K, 0..255 for 4K) */
 
   if (!RFID_SendCommandCheckAck(pn532_packetbuffer)) {
-    serial.writeString("Failed to receive ACK for read command\n");
+    if (RFID_DEBUG) {
+      serial.writeString("Failed to receive ACK for read command\n");
+    }
     return [0];
   }
 
@@ -449,16 +496,20 @@ function RFID_MifareReadDataBlock(blockNumber: number): number[] {
 
   /* If byte 8 isn't 0x00 we probably have an error */
   if (pn532_packetbuffer[7] != 0x00) {
-    serial.writeString("Unexpected response\n");
-    serial.writeNumbers(pn532_packetbuffer);
+    if (RFID_DEBUG) {
+      serial.writeString("Unexpected response\n");
+      serial.writeNumbers(pn532_packetbuffer);
+    }
     return [0];
   }
 
   /* Copy the 16 data bytes to the output buffer        */
   /* Block content starts at byte 9 of a valid response */
   let result = pn532_packetbuffer.slice(8, 24);
-  serial.writeString("Data block: ");
-  serial.writeNumbers(result);
+  if (RFID_DEBUG) {
+    serial.writeString("Data block: ");
+    serial.writeNumbers(result);
+  }
   return result;
 }
 
@@ -517,26 +568,28 @@ function RFID_MifareReadNDEFPayload(sectorNumber: number): string {
 
 
 function RFID_MifareReadPayload() : string {
-  let uid = [0];
-  while ((uid = RFID_ReadPassiveTargetID()).length != 4) {
-    serial.writeString("Place card on the RFID chip\n");
-    basic.showString("card?");
-  }
-  serial.writeString("Found card: ");
-  serial.writeNumbers(uid);
+  const uid = RFID_ReadPassiveTargetID();
 
   const keya_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
   let success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya_ndef);
   if (!success) {
-    serial.writeString("Authentication failed as NDEF key.\n");
-    basic.showString("err")
+    if (RFID_DEBUG) {
+      serial.writeString("Authentication failed as NDEF key.\n");
+    }
     return "";
   }
 
   let result = RFID_MifareReadNDEFPayload(1);
-  serial.writeString("Result: " + result + "\n");
+  if (RFID_DEBUG) {
+    serial.writeString("Result: " + result + "\n");
+  }
 
    return result;
+}
+
+
+function RFID_ConvertUIDtoNumber(uid: number[]) : number {
+  return (uid[0] << 24) + (uid[1] << 16) + (uid[2] << 8) + uid[3];
 }
 
 
@@ -544,22 +597,66 @@ function RFID_MifareReadPayload() : string {
 //% category="MakerBit"
 namespace makerbit {
 
+  const REPEAT_TIMEOUT_MS = 200;
+  const MICROBIT_MAKERBIT_RFID_FOUND = 1010;
+  let rfidBusy = false;
+
+  control.inBackground(() =>
+  {
+    while (true) {
+      // sleep to save CPU cylces
+      basic.pause(REPEAT_TIMEOUT_MS);
+      if (!rfidBusy) {
+        let uid = RFID_ReadPassiveTargetID();
+        if (uid.length == 4) {
+          const uid32 = RFID_ConvertUIDtoNumber(uid);
+          control.raiseEvent(MICROBIT_MAKERBIT_RFID_FOUND, uid32);
+        }
+      }
+    }
+  });
+
+
   /**
-   * Get the UID from an RFID (v020)
+   * Do something when a specific button is pressed or released on the remote control.
+   * @param button the button to be checked
+   * @param action the trigger action
+   * @param handler body code to run when the event is raised
+   */
+  //% subcategory="RFID"
+  //% blockId=makerbit_rfid_on_presented
+  //% block="on RFID presented"
+  //% weight=95
+  export function onRFIDPresented(handler: () => void)
+  {
+    if (RFID_DEBUG) {
+      serial.writeString("onRFIDPresented\n");
+    }
+    control.onEvent(
+      MICROBIT_MAKERBIT_RFID_FOUND,
+      EventBusValue.MICROBIT_EVT_ANY,
+      () => {
+        rfidBusy = true;
+        handler();
+        rfidBusy = false;
+      }
+    );
+  }
+
+
+  /**
+   * Get the UID from an RFID (v030)
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
   //% block="RFID UID"
   //% weight=90
   export function rfidGetUID() : number {
-    // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
     // 'uid' will be 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
     const uid = RFID_ReadPassiveTargetID();
     basic.pause(10);
     if (uid.length == 4) {
-      serial.writeString("Found card: ");
-      serial.writeNumbers(uid);
-      let uid32 = (uid[0] << 24) + (uid[1] << 16) + (uid[2] << 8) + uid[3];
+      const uid32 = RFID_ConvertUIDtoNumber(uid);
       return uid32;
     }
     return 0;
@@ -601,29 +698,15 @@ namespace makerbit {
   }
 
   /**
-   * Convert a decimal number to a hexadecimal string,
-   * with an optional number of digits.
+   * Convert an integer number to a hexadecimal string,
+   * with an optional number of digits. Negative numbers are treated
+   * as 32-bit integers.
    */
   //% blockId="makerbit_convert_number_hexstring"
   //% block="convert $value to hex, $digits digits"
   //% weight=70
-  export function convertNumberToHexString(value: number, digits: HexDigits) : string {
-    let hex = "";
-    let d: number = digits;
-    if (d == 0) {
-      d = 64;
-    }
-    for (let pos = 1; pos <= d; pos++) {
-      let remainder = value % 16;
-      if (remainder < 10) {
-        hex = remainder.toString() + hex;
-      } else {
-        hex = String.fromCharCode(55 + remainder) + hex;
-      }
-      value = Math.idiv(value, 16);
-      if (digits == 0 && value == 0 && (pos % 2) == 0) break;
-    }
-    return hex;
+  export function convertNumberToHex(value: number, digits: HexDigits) : string {
+    return MakerBit_convertNumberToHex(value, digits);
   }
 
 }
