@@ -1,4 +1,4 @@
-# MakerBit LCD1602
+# MakerBit RFID
 
 [![Build Status](https://travis-ci.com/1010Technologies/pxt-makerbit-rfid.svg?branch=master)](https://travis-ci.com/1010Technologies/pxt-makerbit-rfid)
 
@@ -16,60 +16,67 @@ http://makerbit.com/
 | :----------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------: |
 |                                            _MakerBit_                                            |                                   _MakerBit+R with motor controller_                                   |
 
-## LCD
+## RFID
 
-This extension supports printing text and numbers on an I2C LCD 1602 (2 x 16 characters) display.
-Displays with I2C address 39 or 63 will work automatically. Use connectLCD to explicitly connect to a different I2C address.
+This extension supports reading and writing data from RFID cards and tags using a PN532 NFC board.
 
-![LCD1602](https://github.com/1010Technologies/pxt-makerbit-lcd1602/raw/master/icon.png "LCD1602")
-
-### LCD Example
+### Example
 
 ```blocks
-makerbit.setLcdBacklight(LcdBacklight.Off)
-makerbit.showStringOnLcd1602("MakerBit", makerbit.position1602(LcdPosition1602.Pos1), 9)
-basic.pause(2000)
-makerbit.clearLcd1602()
+makerbit.onRFIDPresented(function () {
+  basic.showString(makerbit.convertNumberToHex(makerbit.rfidGetUID(), HexDigits.d0))
+  makerbit.rfidWriteString("Hello!")
+  basic.showString(makerbit.rfidReadString())
+})
 ```
 
-### MakerBit showStringOnLcd1602
+### MakerBit onRFIDPresented
 
-Displays a text on a LCD1602 in the given position range. The text will be cropped if it is longer than the provided range. If there is space left, it will be filled with whitespaces.
+Create an event handler for an RFID tag. If an RFID tag is detected then the code within the event handler is executed. During execution, a `busy` flag is used to prevent simultaneous calls to the handler. The `busy` flag is cleared when the event handler is exited.
 
 ```sig
-makerbit.showStringOnLcd1602("Hello world", 1, 16)
+makerbit.onRFIDPresented(() => {
+})
 ```
 
-### MakerBit clearLcd1602
+### MakerBit rfidGetUID
 
-Clears the LCD completely on a LCD1602.
+Retrieves the UID of an RFID tag. Returned as a 32-bit signed integer, or 0 if no tag is present.
 
 ```sig
-makerbit.clearLcd1602()
+makerbit.rfidGetUID()
 ```
 
-### MakerBit setLcdBacklight
+### MakerBit rfidWriteString
 
-Enables or disables the backlight of the LCD.
+Initializes the RFID tag in the MIFARE Classic format and writes the string data to the card as a MIFARE "well-known-type" `text` record. The maximum string length is 36 characters.
 
 ```sig
-makerbit.setLcdBacklight(LcdBacklight.On)
+makerbit.rfidWriteString("Hello")
 ```
 
-### MakerBit connectLcd
+### MakerBit rfidReadString
 
-Connects to the LCD at a given I2C address. The addresses 39 (PCF8574) or 63 (PCF8574A) seem to be widely used.
+Reads the string data stored within the card. The data is assumed to be stored as a MIFARE "well-known-type" record of type `text` or `URI`.
 
 ```sig
-makerbit.connectLcd(39)
+makerbit.rfidReadString()
 ```
 
-### MakerBit isLcdConnected
+### MakerBit rfidWriteURL
 
-Returns true if a LCD is connected. False otherwise.
+Initializes the RFID tag in the MIFARE Classic format and writes the data to the card as a MIFARE "well-known-type" `URI` record. The maximum length is 38 characters. Do not include the `http://` prefix.
 
 ```sig
-makerbit.isLcdConnected()
+makerbit.rfidWriteURL("1010technologies.com")
+```
+
+### MakerBit convertNumberToHex
+
+Convert an integer number to a hexadecimal string, with an optional number of digits. Negative numbers are treated as 32-bit integers. Set the number of digits to 0 for the default (default is the smallest even number of digits needed to convert the number).
+
+```sig
+makerbit.convertNumberToHex(12345, 0)
 ```
 
 ## License
