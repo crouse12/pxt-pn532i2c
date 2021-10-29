@@ -1,5 +1,5 @@
 /**
- * LCD tests
+ * RFID tests
  */
 
-makerbit.rfidGetUUID();
+makerbit.rfidGetUID();
