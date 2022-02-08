@@ -698,6 +698,18 @@ namespace makerbit {
   }
 
   /**
+   * Set the debug flag for the RFID module.
+   */
+  //% subcategory="RFID"
+  //% blockId="makerbit_rfid_set_debug"
+  //% block="RFID set debug"
+  //% weight=70
+  export function rfidSetDebug(doDebug: boolean) {
+    RFID_DEBUG = doDebug
+    serial.writeString("Debug " + (RFID_DEBUG ? "enabled" : "disabled") + "\n");
+  }
+
+  /**
    * Convert an integer number to a hexadecimal string,
    * with an optional number of digits. Negative numbers are treated
    * as 32-bit integers.
@@ -707,18 +719,6 @@ namespace makerbit {
   //% weight=70
   export function convertNumberToHex(value: number, digits: HexDigits) : string {
     return MakerBit_convertNumberToHex(value, digits);
-  }
-
-  /**
-   * Read a text string from an RFID.
-   */
-  //% subcategory="RFID"
-  //% blockId="makerbit_rfid_set_debug"
-  //% block="RFID set debug"
-  //% weight=80
-  export function rfidSetDebug(doDebug: boolean) {
-    RFID_DEBUG = doDebug
-    serial.writeString("Debug " + (RFID_DEBUG ? "enabled" : "disabled") + "\n");
   }
 
 
