@@ -1,6 +1,6 @@
 {
     "name": "MakerBit-RFID",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "description": "MakeCode extension for PN532 NFC RFID module",
     "license": "MIT",
     "dependencies": {

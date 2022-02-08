@@ -702,7 +702,7 @@ namespace makerbit {
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_set_debug"
-  //% block="RFID set debug"
+  //% block="RFID set debug $doDebug"
   //% weight=70
   export function rfidSetDebug(doDebug: boolean) {
     RFID_DEBUG = doDebug
