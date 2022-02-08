@@ -241,8 +241,11 @@ function RFID_ReadPassiveTargetID() : number[] {
     }
     const uid = RFID_ReadDetectedPassiveTargetID();
     if (RFID_DEBUG) {
-      serial.writeString("Found RFID: " +
-        MakerBit_convertNumberToHex(RFID_ConvertUIDtoNumber(uid), 8) + "\n");
+      const rfid = RFID_ConvertUIDtoNumber(uid)
+      if (rfid !== 0) {
+        serial.writeString("Found RFID: " +
+          MakerBit_convertNumberToHex(rfid, 16) + "\n");
+      }
     }
     return uid;
 }
@@ -589,7 +592,11 @@ function RFID_MifareReadPayload() : string {
 
 
 function RFID_ConvertUIDtoNumber(uid: number[]) : number {
-  return (uid[0] << 24) + (uid[1] << 16) + (uid[2] << 8) + uid[3];
+  let result = 0
+  for (let i = 0; i < uid.length; i++) {
+    result += uid[i] << (8*(uid.length - 1 - i))    
+  }
+  return result
 }
 
 
@@ -655,9 +662,8 @@ namespace makerbit {
     // 'uid' will be 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
     const uid = RFID_ReadPassiveTargetID();
     basic.pause(10);
-    if (uid.length == 4) {
-      const uid32 = RFID_ConvertUIDtoNumber(uid);
-      return uid32;
+    if (uid.length === 4 || uid.length === 7) {
+      return RFID_ConvertUIDtoNumber(uid);
     }
     return 0;
   }
