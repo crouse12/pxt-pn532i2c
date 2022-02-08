@@ -709,4 +709,17 @@ namespace makerbit {
     return MakerBit_convertNumberToHex(value, digits);
   }
 
+  /**
+   * Read a text string from an RFID.
+   */
+  //% subcategory="RFID"
+  //% blockId="makerbit_rfid_set_debug"
+  //% block="RFID set debug"
+  //% weight=80
+  export function rfidSetDebug(doDebug: boolean) {
+    RFID_DEBUG = doDebug
+    serial.writeString("Debug " + (RFID_DEBUG ? "enabled" : "disabled") + "\n");
+  }
+
+
 }
