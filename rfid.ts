@@ -241,9 +241,9 @@ function RFID_ReadPassiveTargetID() : number[] {
     }
     const uid = RFID_ReadDetectedPassiveTargetID();
     if (RFID_DEBUG) {
-      const uidString = RFID_ConvertUIDtoString(uid)
-      if (uidString !== '') {
-        serial.writeString("Found RFID: " + uidString)
+      if (uid.length > 1) {
+        const uidString = RFID_ConvertUIDtoString(uid)
+        serial.writeString("Found RFID: " + uidString + "\n")
       }
     }
     return uid;
@@ -648,7 +648,6 @@ namespace makerbit {
     );
   }
 
-
   /**
    * Get the UID from an RFID
    */
@@ -702,7 +701,7 @@ namespace makerbit {
   }
 
   /**
-   * Set the debug flag for the RFID module. v0.9.4
+   * Set the debug flag for the RFID module. v0.9.5
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_set_debug"
