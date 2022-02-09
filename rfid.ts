@@ -204,12 +204,6 @@ function RFID_ReadDetectedPassiveTargetID() : number[] {
 
     /* Card appears to be Mifare Classic */
     const uidLength = pn532_packetbuffer[12];
-    if (RFID_DEBUG) {
-      pn532_packetbuffer.forEach(element => {
-        serial.writeString(MakerBit_convertNumberToHex(element, 2));
-      });
-      serial.writeString("\n");
-    }
     const uid = pn532_packetbuffer.slice(13, 13 + uidLength);
     return uid;
 }
@@ -246,17 +240,12 @@ function RFID_ReadPassiveTargetID() : number[] {
       }
     }
     const uid = RFID_ReadDetectedPassiveTargetID();
-    // if (RFID_DEBUG) {
-    //   const uidNumber = RFID_ConvertUIDtoNumber(uid)
-    //   if (uidNumber !== 0) {
-    //     serial.writeString("Found RFID: ")
-    //     uid.forEach(element => {
-    //       serial.writeString(MakerBit_convertNumberToHex(element, 2));
-    //     });
-    //     serial.writeString("  Decimal: " + uidNumber + "  Hex: " + 
-    //       MakerBit_convertNumberToHex(uidNumber, 16) + "\n");
-    //   }
-    // }
+    if (RFID_DEBUG) {
+      const uidString = RFID_ConvertUIDtoString(uid)
+      if (uidString !== '') {
+        serial.writeString("Found RFID: " + uidString)
+      }
+    }
     return uid;
 }
 
@@ -601,11 +590,11 @@ function RFID_MifareReadPayload() : string {
 }
 
 
-function RFID_ConvertUIDtoNumber(uid: number[]) : number {
-  let result = 0
-  for (let i = 0; i < uid.length; i++) {
-    result += uid[i] << (8*(uid.length - 1 - i))    
-  }
+function RFID_ConvertUIDtoString(uid: number[]) : string {
+  let result = ''
+  uid.forEach(element => {
+    result += MakerBit_convertNumberToHex(element, 2);
+  });
   return result
 }
 
@@ -626,8 +615,7 @@ namespace makerbit {
       if (!rfidBusy) {
         let uid = RFID_ReadPassiveTargetID();
         if (uid.length === 4 || uid.length === 7) {
-          const uidNumber = RFID_ConvertUIDtoNumber(uid);
-          control.raiseEvent(MICROBIT_MAKERBIT_RFID_FOUND, uidNumber);
+          control.raiseEvent(MICROBIT_MAKERBIT_RFID_FOUND, 1);
         }
       }
     }
@@ -662,20 +650,20 @@ namespace makerbit {
 
 
   /**
-   * Get the UID from an RFID (v030)
+   * Get the UID from an RFID
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
   //% block="RFID UID"
   //% weight=90
-  export function rfidGetUID() : number {
+  export function rfidGetUID() : string {
     // 'uid' will be 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
     const uid = RFID_ReadPassiveTargetID();
     basic.pause(10);
     if (uid.length === 4 || uid.length === 7) {
-      return RFID_ConvertUIDtoNumber(uid);
+      return RFID_ConvertUIDtoString(uid);
     }
-    return 0;
+    return '';
   }
 
   /**
@@ -714,7 +702,7 @@ namespace makerbit {
   }
 
   /**
-   * Set the debug flag for the RFID module. v0.9.3
+   * Set the debug flag for the RFID module. v0.9.4
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_set_debug"
