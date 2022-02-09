@@ -710,7 +710,7 @@ namespace makerbit {
   }
 
   /**
-   * Set the debug flag for the RFID module.
+   * Set the debug flag for the RFID module. v0.9.1
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_set_debug"
