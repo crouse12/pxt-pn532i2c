@@ -249,7 +249,11 @@ function RFID_ReadPassiveTargetID() : number[] {
     if (RFID_DEBUG) {
       const uidNumber = RFID_ConvertUIDtoNumber(uid)
       if (uidNumber !== 0) {
-        serial.writeString("Found RFID: " +
+        serial.writeString("Found RFID: ")
+        uid.forEach(element => {
+          serial.writeString(MakerBit_convertNumberToHex(element, 2));
+        });
+        serial.writeString("  Decimal: " + uidNumber + "  Hex: " + 
           MakerBit_convertNumberToHex(uidNumber, 16) + "\n");
       }
     }
@@ -710,7 +714,7 @@ namespace makerbit {
   }
 
   /**
-   * Set the debug flag for the RFID module. v0.9.1
+   * Set the debug flag for the RFID module. v0.9.2
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_set_debug"
