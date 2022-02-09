@@ -205,7 +205,10 @@ function RFID_ReadDetectedPassiveTargetID() : number[] {
     /* Card appears to be Mifare Classic */
     const uidLength = pn532_packetbuffer[12];
     if (RFID_DEBUG) {
-      serial.writeString(pn532_packetbuffer + "\n");
+      pn532_packetbuffer.forEach(element => {
+        serial.writeString(MakerBit_convertNumberToHex(element, 2));
+      });
+      serial.writeString("\n");
     }
     const uid = pn532_packetbuffer.slice(13, 13 + uidLength);
     return uid;
