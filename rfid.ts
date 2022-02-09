@@ -204,6 +204,9 @@ function RFID_ReadDetectedPassiveTargetID() : number[] {
 
     /* Card appears to be Mifare Classic */
     const uidLength = pn532_packetbuffer[12];
+    if (RFID_DEBUG) {
+      serial.writeString(pn532_packetbuffer + "\n");
+    }
     const uid = pn532_packetbuffer.slice(13, 13 + uidLength);
     return uid;
 }
@@ -241,10 +244,10 @@ function RFID_ReadPassiveTargetID() : number[] {
     }
     const uid = RFID_ReadDetectedPassiveTargetID();
     if (RFID_DEBUG) {
-      const rfid = RFID_ConvertUIDtoNumber(uid)
-      if (rfid !== 0) {
+      const uidNumber = RFID_ConvertUIDtoNumber(uid)
+      if (uidNumber !== 0) {
         serial.writeString("Found RFID: " +
-          MakerBit_convertNumberToHex(rfid, 16) + "\n");
+          MakerBit_convertNumberToHex(uidNumber, 16) + "\n");
       }
     }
     return uid;
@@ -615,9 +618,9 @@ namespace makerbit {
       basic.pause(REPEAT_TIMEOUT_MS);
       if (!rfidBusy) {
         let uid = RFID_ReadPassiveTargetID();
-        if (uid.length == 4) {
-          const uid32 = RFID_ConvertUIDtoNumber(uid);
-          control.raiseEvent(MICROBIT_MAKERBIT_RFID_FOUND, uid32);
+        if (uid.length === 4 || uid.length === 7) {
+          const uidNumber = RFID_ConvertUIDtoNumber(uid);
+          control.raiseEvent(MICROBIT_MAKERBIT_RFID_FOUND, uidNumber);
         }
       }
     }
