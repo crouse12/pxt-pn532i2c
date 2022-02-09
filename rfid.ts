@@ -246,17 +246,17 @@ function RFID_ReadPassiveTargetID() : number[] {
       }
     }
     const uid = RFID_ReadDetectedPassiveTargetID();
-    if (RFID_DEBUG) {
-      const uidNumber = RFID_ConvertUIDtoNumber(uid)
-      if (uidNumber !== 0) {
-        serial.writeString("Found RFID: ")
-        uid.forEach(element => {
-          serial.writeString(MakerBit_convertNumberToHex(element, 2));
-        });
-        serial.writeString("  Decimal: " + uidNumber + "  Hex: " + 
-          MakerBit_convertNumberToHex(uidNumber, 16) + "\n");
-      }
-    }
+    // if (RFID_DEBUG) {
+    //   const uidNumber = RFID_ConvertUIDtoNumber(uid)
+    //   if (uidNumber !== 0) {
+    //     serial.writeString("Found RFID: ")
+    //     uid.forEach(element => {
+    //       serial.writeString(MakerBit_convertNumberToHex(element, 2));
+    //     });
+    //     serial.writeString("  Decimal: " + uidNumber + "  Hex: " + 
+    //       MakerBit_convertNumberToHex(uidNumber, 16) + "\n");
+    //   }
+    // }
     return uid;
 }
 
@@ -714,7 +714,7 @@ namespace makerbit {
   }
 
   /**
-   * Set the debug flag for the RFID module. v0.9.2
+   * Set the debug flag for the RFID module. v0.9.3
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_set_debug"
