@@ -41,7 +41,7 @@ makerbit.onRFIDPresented(() => {
 
 ### MakerBit rfidGetUID
 
-Retrieves the UID of an RFID tag. Returned as a 32-bit signed integer, or 0 if no tag is present.
+Retrieves the UID of an RFID tag. Returned as a hex string, or empty string if no tag is present.
 
 ```sig
 makerbit.rfidGetUID()

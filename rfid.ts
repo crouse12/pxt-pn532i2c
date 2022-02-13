@@ -218,9 +218,9 @@ function RFID_DoInitialize() : void {
   const tens = Math.floor(chip / 16);
   const ones = chip % 16;
   if (RFID_DEBUG) {
-    serial.writeString("Found chip PN5" + tens + ones + "\n");
-    serial.writeString("Firmware version " + ((version >> 16) & 0xFF) +
-      "." + ((version >> 8) & 0xFF) + "\n");
+    serial.writeString("*** Found chip PN5" + tens + ones + "\n\r");
+    serial.writeString("*** Firmware version " + ((version >> 16) & 0xFF) +
+      "." + ((version >> 8) & 0xFF) + "\n\r");
   }
 
   // Set the max number of retry attempts to read from a card
@@ -243,7 +243,7 @@ function RFID_ReadPassiveTargetID() : number[] {
     if (RFID_DEBUG) {
       if (uid.length > 1) {
         const uidString = RFID_ConvertUIDtoString(uid)
-        serial.writeString("Found RFID: " + uidString + "\n")
+        serial.writeString("*** Found RFID: " + uidString + "\n\r")
       }
     }
     return uid;
@@ -294,7 +294,7 @@ function RFID_MifareWriteDataBlock(blockNumber: number,
 
   if (!RFID_SendCommandCheckAck(pn532_packetbuffer)) {
     if (RFID_DEBUG) {
-      serial.writeString("Failed to receive ACK for write command\n");
+      serial.writeString("*** Failed to receive ACK for write command\n\r");
     }
     return false;
   }
@@ -411,11 +411,12 @@ function RFID_MifareWritePayload(payload: string, type: string)
   let success = RFID_MifareAuthenticateBlock(uid, 0, RFID_key.AUTH_A, keya);
   if (success) {
     if (RFID_DEBUG) {
-      serial.writeString("Formatting card for NDEF\n");
+      serial.writeString("*** Formatting card for NDEF, found non-NDEF auth: ");
+      serial.writeString(RFID_ConvertByteArrayToString(keya) + '\r\n');
     }
     if (!RFID_MifareFormatNDEF()) {
       if (RFID_DEBUG) {
-        serial.writeString("Unable to format the card for NDEF\n");
+        serial.writeString("*** Unable to format for NDEF. Aborting write.\n\r");
       }
       return;
     }
@@ -424,21 +425,25 @@ function RFID_MifareWritePayload(payload: string, type: string)
   // // Now see if this is a newly-formatted card (still old key)
   // // or if we are rewriting an existing NDEF URL.
   if (RFID_DEBUG) {
-    serial.writeString("Trying original (non-NDEF) key.\n");
+    serial.writeString("*** See if newly-formated, still old key: ");
+    serial.writeString(RFID_ConvertByteArrayToString(keya) + '\r\n');
   }
 
   success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya);
 
   if (!success) {
+    const keya_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
     if (RFID_DEBUG) {
-      serial.writeString("Doesn't seem to be non-NDEF. Trying NDEF key.\n");
+      serial.writeString("*** Non-NDEF auth failed. Trying NDEF key: ");
+      serial.writeString(RFID_ConvertByteArrayToString(keya_ndef) + '\r\n');
     }
     uid = RFID_ReadPassiveTargetID(); // Reset PN532
-    const keya_ndef = [ 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 ];
     success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya_ndef);
     if (!success) {
       if (RFID_DEBUG) {
-        serial.writeString("Authentication failed as NDEF key.\n");
+        serial.writeString("*** Authentication failed as NDEF key: ");
+        serial.writeString(RFID_ConvertByteArrayToString(keya_ndef) + '\r\n');
+        serial.writeString("*** Aborting write.");
       }
       return;
     }
@@ -447,7 +452,7 @@ function RFID_MifareWritePayload(payload: string, type: string)
   const NDEF_URIPREFIX_HTTP_WWWDOT = 1;
 
   if (RFID_DEBUG) {
-    serial.writeString("Found authentication key, writing payload...\n");
+    serial.writeString("*** Found authentication key, writing payload...\n\r");
   }
 
   if (type == "U")
@@ -468,9 +473,9 @@ function RFID_MifareWritePayload(payload: string, type: string)
 
   if (RFID_DEBUG) {
     if (success) {
-      serial.writeString("Done writing: " + payload + "\n");
+      serial.writeString("*** Done writing: " + payload + "\n\r");
     } else {
-      serial.writeString("Write failed.\n");
+      serial.writeString("*** Write failed!\n\r");
     }
   }
 }
@@ -486,7 +491,7 @@ function RFID_MifareReadDataBlock(blockNumber: number): number[] {
 
   if (!RFID_SendCommandCheckAck(pn532_packetbuffer)) {
     if (RFID_DEBUG) {
-      serial.writeString("Failed to receive ACK for read command\n");
+      serial.writeString("*** Failed to receive ACK for read command\n\r");
     }
     return [0];
   }
@@ -499,8 +504,8 @@ function RFID_MifareReadDataBlock(blockNumber: number): number[] {
   /* If byte 8 isn't 0x00 we probably have an error */
   if (pn532_packetbuffer[7] != 0x00) {
     if (RFID_DEBUG) {
-      serial.writeString("Unexpected response\n");
-      serial.writeNumbers(pn532_packetbuffer);
+      serial.writeString("*** Unexpected response\n\r");
+      serial.writeString(RFID_ConvertByteArrayToString(pn532_packetbuffer) + '\r\n');
     }
     return [0];
   }
@@ -509,8 +514,8 @@ function RFID_MifareReadDataBlock(blockNumber: number): number[] {
   /* Block content starts at byte 9 of a valid response */
   let result = pn532_packetbuffer.slice(8, 24);
   if (RFID_DEBUG) {
-    serial.writeString("Data block: ");
-    serial.writeNumbers(result);
+    serial.writeString("*** Read Data block: ");
+    serial.writeString(RFID_ConvertByteArrayToString(result) + '\r\n');
   }
   return result;
 }
@@ -576,17 +581,27 @@ function RFID_MifareReadPayload() : string {
   let success = RFID_MifareAuthenticateBlock(uid, 4, RFID_key.AUTH_A, keya_ndef);
   if (!success) {
     if (RFID_DEBUG) {
-      serial.writeString("Authentication failed as NDEF key.\n");
+      serial.writeString("*** Authentication failed using NDEF key: ");
+      serial.writeString(RFID_ConvertByteArrayToString(keya_ndef) + '\r\n');
     }
     return "";
   }
 
   let result = RFID_MifareReadNDEFPayload(1);
   if (RFID_DEBUG) {
-    serial.writeString("Result: " + result + "\n");
+    serial.writeString("*** Result: " + result + " ***\n\r");
   }
 
    return result;
+}
+
+
+function RFID_ConvertByteArrayToString(data: number[]) : string {
+  let result = ''
+  data.forEach(element => {
+    result += ' ' + MakerBit_convertNumberToHex(element, 2);
+  });
+  return result
 }
 
 
@@ -635,7 +650,7 @@ namespace makerbit {
   export function onRFIDPresented(handler: () => void)
   {
     if (RFID_DEBUG) {
-      serial.writeString("onRFIDPresented\n");
+      serial.writeString("*** onRFIDPresented\n\r");
     }
     control.onEvent(
       MICROBIT_MAKERBIT_RFID_FOUND,
@@ -701,7 +716,7 @@ namespace makerbit {
   }
 
   /**
-   * Set the debug flag for the RFID module. v0.9.5
+   * Set the debug flag for the RFID module.
    */
   //% subcategory="RFID"
   //% blockId="makerbit_rfid_set_debug"
@@ -709,7 +724,7 @@ namespace makerbit {
   //% weight=70
   export function rfidSetDebug(doDebug: boolean) {
     RFID_DEBUG = doDebug
-    serial.writeString("Debug " + (RFID_DEBUG ? "enabled" : "disabled") + "\n");
+    serial.writeString("*** Debug " + (RFID_DEBUG ? "enabled" : "disabled") + "\n\r");
   }
 
   /**
@@ -726,3 +741,17 @@ namespace makerbit {
 
 
 }
+
+
+// makerbit.onRFIDPresented(function () {
+//     serial.writeLine("here!")
+//     serial.writeString(makerbit.rfidGetUID())
+//     makerbit.rfidWriteURL("test.com")
+//     basic.pause(1000)
+//     serial.writeLine(makerbit.rfidReadString())
+//     basic.pause(5000)
+// })
+// makerbit.rfidSetDebug(true)
+// basic.forever(function () {
+
+// })
