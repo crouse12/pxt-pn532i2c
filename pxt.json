@@ -8,8 +8,7 @@
     },
     "files": [
         "README.md",
-        "rfid.ts",
-        "_locales/zh/makerbit-strings.json"
+        "rfid.ts"
     ],
     "testFiles": [
         "test.ts"
