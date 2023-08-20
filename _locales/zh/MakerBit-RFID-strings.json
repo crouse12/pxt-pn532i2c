@@ -1,0 +1,10 @@
+{
+    "makerbit|block": "PN532(i2c)",
+    "makerbit.onRFIDPresented|block": "有RFID標籤放入時",
+    "makerbit.rfidGetUID|block": "讀取RFID的UID",
+    "makerbit.rfidWriteString|block": "RFID寫入字串 $text",
+    "makerbit.rfidReadString|block": "RFID的讀取字串",
+    "makerbit.rfidWriteURL|block": "RFID的寫入網址$url",
+    "makerbit.rfidSetDebug|block": "RFID設定Debug $doDebug",
+    "makerbit.convertNumberToHex|block": "將數字 $value 轉換成16進位 $digits 位元組"
+}
