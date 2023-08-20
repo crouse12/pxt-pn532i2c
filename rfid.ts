@@ -643,7 +643,6 @@ namespace makerbit {
    * @param action the trigger action
    * @param handler body code to run when the event is raised
    */
-  //% subcategory="RFID"
   //% blockId=makerbit_rfid_on_presented
   //% block="on RFID presented"
   //% weight=95
@@ -666,7 +665,6 @@ namespace makerbit {
   /**
    * Get the UID from an RFID
    */
-  //% subcategory="RFID"
   //% blockId="makerbit_rfid_get_uid"
   //% block="RFID UID"
   //% weight=90
@@ -683,7 +681,6 @@ namespace makerbit {
   /**
    * Write a text string to an RFID. Max 36 characters.
    */
-  //% subcategory="RFID"
   //% blockId="makerbit_rfid_write_string"
   //% block="RFID write string $text"
   //% text.defl="Hello!"
@@ -695,7 +692,6 @@ namespace makerbit {
   /**
    * Read a text string from an RFID.
    */
-  //% subcategory="RFID"
   //% blockId="makerbit_rfid_read_string"
   //% block="RFID read string"
   //% weight=80
@@ -706,7 +702,6 @@ namespace makerbit {
   /**
    * Write a URL to an RFID. Do not include the http://. Max 38 characters.
    */
-  //% subcategory="RFID"
   //% blockId="makerbit_rfid_write_url"
   //% block="RFID write URL $url"
   //% url.defl="1010technologies.com"
@@ -718,7 +713,6 @@ namespace makerbit {
   /**
    * Set the debug flag for the RFID module.
    */
-  //% subcategory="RFID"
   //% blockId="makerbit_rfid_set_debug"
   //% block="RFID set debug $doDebug"
   //% weight=70
