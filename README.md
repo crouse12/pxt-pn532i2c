@@ -1,4 +1,4 @@
-# MakerBit RFID
+# RFID
 
 [![Build Status](https://travis-ci.com/1010Technologies/pxt-makerbit-rfid.svg?branch=master)](https://travis-ci.com/1010Technologies/pxt-makerbit-rfid)
 
